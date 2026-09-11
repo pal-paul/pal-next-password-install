@@ -9,6 +9,16 @@ This guide installs PAL Next Password from its public GitHub Container Registry 
 - a trusted HTTPS hostname for the NAS
 - the PAL Next Password iPhone app
 
+## Tailscale is optional
+
+Tailscale is not required. PAL Next Password only requires a trusted HTTPS address that the iPhone can reach. You can use:
+
+- Synology's built-in reverse proxy with your own domain and trusted certificate;
+- Tailscale or another private VPN;
+- a trusted HTTPS reverse proxy elsewhere on your network.
+
+The steps below use Synology's built-in reverse proxy. Do not connect the iPhone app directly to an HTTP address or continue past a certificate warning.
+
 The public image is:
 
 ```text
