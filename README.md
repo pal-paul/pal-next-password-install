@@ -1,6 +1,6 @@
 # Install PAL Next Password on Synology
 
-This guide installs PAL Next Password from its public GitHub Container Registry image. It does not require SSH or command-line access. The application source repository remains private.
+This guide installs PAL Next Password from its public GitHub Container Registry image through Container Manager. The container installation does not require SSH. Option A requires one short SSH session only to enable Tailscale Serve; Option B requires no SSH.
 
 ## Requirements
 
@@ -9,15 +9,31 @@ This guide installs PAL Next Password from its public GitHub Container Registry 
 - a trusted HTTPS hostname for the NAS
 - the PAL Next Password iPhone app
 
-## Tailscale is optional
+## Choose how the iPhone connects
 
-Tailscale is not required. PAL Next Password only requires a trusted HTTPS address that the iPhone can reach. You can use:
+Tailscale is optional. Choose one connectivity option before creating the Container Manager project.
 
-- Synology's built-in reverse proxy with your own domain and trusted certificate;
-- Tailscale or another private VPN;
-- a trusted HTTPS reverse proxy elsewhere on your network.
+### Option A: Tailscale private access
 
-The steps below use Synology's built-in reverse proxy. Do not connect the iPhone app directly to an HTTP address or continue past a certificate warning.
+Choose this option for private access without opening a router port or owning a domain. The NAS and iPhone must be signed into the same Tailscale network. Container installation uses the Synology interface, but enabling Tailscale Serve requires one short SSH session.
+
+Use a public URL resembling:
+
+```text
+https://my-nas.example-tailnet.ts.net
+```
+
+### Option B: Synology reverse proxy without Tailscale
+
+Choose this option when you have a domain name and trusted TLS certificate. The hostname must resolve to the NAS from every network where the iPhone will use synchronization. Remote access normally requires router and firewall configuration; LAN-only access can use local DNS.
+
+Use a public URL resembling:
+
+```text
+https://passwords.example.com
+```
+
+Both options provide HTTPS in front of the container's local HTTP endpoint. Do not connect the iPhone app directly to HTTP or continue past a certificate warning.
 
 The public image is:
 
@@ -32,7 +48,7 @@ The image contains the compiled server only. It contains no passwords, setup tok
 | Setting | Example | Requirement |
 | --- | --- | --- |
 | Server ID | `home-nas-01` | Keep it unchanged for this installation. |
-| Public URL | `https://passwords.example.com` | Must be trusted HTTPS and reachable from the iPhone. |
+| Public URL | Your Option A or Option B URL | Must be trusted HTTPS and reachable from the iPhone. |
 | Setup token | A random string of at least 32 characters | Generate it in a password manager and use it only for first setup. |
 
 Do not use an online token generator. Keep the setup token temporarily because it is needed to open the one-time setup page.
@@ -54,19 +70,53 @@ Container Manager downloads the correct Intel/AMD or ARM64 image automatically. 
 
 The container listens only on NAS loopback port `18080`. Do not expose that HTTP port directly to the internet.
 
+### Option A: Tailscale private access
+
+1. Install **Tailscale** from Synology Package Center and install the Tailscale app on the iPhone.
+2. Sign both devices into the same tailnet.
+3. Enable **MagicDNS** and **HTTPS Certificates** in the Tailscale admin console.
+4. Confirm that `PAL_PUBLIC_URL` in the Compose configuration uses the NAS hostname ending in `.ts.net`.
+5. Temporarily enable SSH under **Control Panel > Terminal & SNMP** and connect to the NAS.
+6. Publish the loopback-only container through Tailscale Serve:
+
+   ```sh
+   sudo tailscale serve --bg http://127.0.0.1:18080
+   sudo tailscale serve status
+   ```
+
+7. Disable SSH again. Keep Tailscale connected on the iPhone while using the server.
+
+Do not enable Tailscale Funnel. Serve keeps the endpoint private to authenticated devices in the tailnet.
+
+### Option B: Synology reverse proxy without Tailscale
+
 1. Open **Control Panel > Login Portal > Advanced > Reverse Proxy**.
 2. Create a rule whose source is HTTPS with the hostname from `PAL_PUBLIC_URL` and port `443`.
 3. Set the destination protocol to HTTP, hostname to `localhost`, and port to `18080`.
 4. Open **Control Panel > Security > Certificate** and assign a trusted certificate to that hostname.
 5. Allow HTTPS port `443` through the DSM firewall only from networks that should reach the vault.
+6. If access is required outside the home network, point the hostname to the router and forward only HTTPS port `443` to the NAS. Do not forward port `18080`.
 
-A private VPN address is preferable to public internet exposure. The certificate must be trusted by iOS; certificate-warning pages will be rejected by the app.
+Use a trusted certificate from a public certificate authority. Synology's built-in Let's Encrypt support is suitable when its validation requirements can be met.
 
-Open `https://passwords.example.com/readyz` on the iPhone. It should return `{"status":"ready"}` without a certificate warning.
+### Verify either option
+
+Open this address on the iPhone:
+
+```text
+YOUR_PUBLIC_URL/readyz
+```
+
+It should return `{"status":"ready"}` without a certificate warning.
 
 ## 4. Connect the first iPhone
 
-1. Open `https://passwords.example.com/setup?token=YOUR_SETUP_TOKEN` in Safari, substituting your hostname and token.
+1. Open the following URL in Safari, substituting the selected public URL and setup token:
+
+   ```text
+   YOUR_PUBLIC_URL/setup?token=YOUR_SETUP_TOKEN
+   ```
+
 2. Open PAL Next Password and create and unlock a local vault.
 3. Open **Devices > Connect server > Scan setup code**.
 4. Scan the QR code displayed in Safari and select **Connect**.
@@ -93,6 +143,7 @@ For predictable production upgrades, replace `latest` with a published version t
 
 - **Image download fails:** confirm the NAS can reach `ghcr.io` over HTTPS.
 - **Container repeatedly stops:** check the project log and verify all three placeholder values were replaced.
-- **`/readyz` works locally but not on iPhone:** verify the reverse proxy, certificate, firewall, DNS, and VPN.
+- **`/readyz` works locally but not on iPhone:** verify the selected option's hostname, certificate, firewall, DNS, and VPN state.
+- **Tailscale URL does not open:** verify both devices are in the same tailnet, MagicDNS and HTTPS are enabled, and `tailscale serve status` lists port `18080`.
 - **Setup page returns 404:** verify the token; if one device already connected, use approved-device enrollment.
 - **Permission error for `/data`:** keep the named volume from the supplied Compose file.
