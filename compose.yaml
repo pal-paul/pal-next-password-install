@@ -1,0 +1,32 @@
+services:
+  pal-server:
+    image: ghcr.io/pal-paul/pal-next-password-server:latest
+    container_name: pal-next-password
+    restart: unless-stopped
+    read_only: true
+    environment:
+      PAL_SERVER_ID: CHANGE_ME_STABLE_SERVER_ID
+      PAL_PUBLIC_URL: https://passwords.example.com
+      PAL_LISTEN_ADDR: :8080
+      PAL_DB_PATH: /data/pal-next-password.db
+      PAL_BOOTSTRAP_TOKEN: CHANGE_ME_RANDOM_SETUP_TOKEN
+    ports:
+      - "127.0.0.1:18080:8080"
+    volumes:
+      - pal-data:/data
+    tmpfs:
+      - /tmp:size=16m,mode=1700
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/pal-healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  pal-data:
+    name: pal-next-password-data
